@@ -1,0 +1,4 @@
+DATABASE_URL=postgres://sonha:sonha@localhost:5433/english_noting?sslmode=disable
+SECRET_KEY=your_secret_key_here
+DEBUG=True
+ALLOWED_HOSTS=localhost,
