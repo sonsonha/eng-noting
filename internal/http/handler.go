@@ -1,18 +1,20 @@
 package http
 
 import (
-	"database/sql"
 	"log"
 
-	"github.com/sonsonha/eng-noting/internal/ai"
+	"github.com/sonsonha/eng-noting/internal/usecase"
 )
 
+// Handler holds all HTTP handlers and their dependencies
 type Handler struct {
-	db       *sql.DB
-	aiClient ai.Client
-	logger   Logger
+	wordUseCase    *usecase.WordUseCase
+	reviewUseCase  *usecase.ReviewUseCase
+	sessionUseCase *usecase.SessionUseCase
+	logger         Logger
 }
 
+// Logger interface for logging
 type Logger interface {
 	Warn(msg string, fields ...any)
 	Error(msg string, fields ...any)
@@ -33,10 +35,16 @@ func (l *stdLogger) Info(msg string, fields ...any) {
 	log.Printf("[INFO] %s %v", msg, fields)
 }
 
-func NewHandler(db *sql.DB, aiClient ai.Client) *Handler {
+// NewHandler creates a new HTTP handler with use cases
+func NewHandler(
+	wordUseCase *usecase.WordUseCase,
+	reviewUseCase *usecase.ReviewUseCase,
+	sessionUseCase *usecase.SessionUseCase,
+) *Handler {
 	return &Handler{
-		db:       db,
-		aiClient: aiClient,
-		logger:   &stdLogger{},
+		wordUseCase:    wordUseCase,
+		reviewUseCase:  reviewUseCase,
+		sessionUseCase: sessionUseCase,
+		logger:         &stdLogger{},
 	}
 }
