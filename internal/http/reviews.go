@@ -1,14 +1,13 @@
 package http
 
 import (
-	"database/sql"
 	"encoding/json"
 	"net/http"
+	"sync"
 
 	"github.com/google/uuid"
-	"github.com/sonsonha/eng-noting/internal/db"
-	"github.com/sonsonha/eng-noting/internal/job"
-	"github.com/sonsonha/eng-noting/internal/session"
+	"github.com/sonsonha/eng-noting/internal/domain"
+	"github.com/sonsonha/eng-noting/internal/usecase"
 )
 
 type SubmitReviewRequest struct {
@@ -36,65 +35,35 @@ func (h *Handler) SubmitReview(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Start transaction
-	tx, err := h.db.BeginTx(ctx, nil)
+	input := usecase.SubmitReviewInput{
+		UserID:     userID,
+		WordID:     req.WordID,
+		Result:     req.Result,
+		ReviewType: req.ReviewType,
+	}
+
+	output, err := h.reviewUseCase.SubmitReview(ctx, input)
 	if err != nil {
-		h.logger.Error("failed to begin transaction", "err", err)
+		if err == usecase.ErrNotFound {
+			writeError(w, http.StatusNotFound, "word not found")
+			return
+		}
+		if err == usecase.ErrForbidden {
+			writeError(w, http.StatusForbidden, "word does not belong to user")
+			return
+		}
+		h.logger.Error("failed to submit review", "err", err)
 		writeError(w, http.StatusInternalServerError, "failed to process review")
 		return
 	}
-	defer tx.Rollback()
 
-	// Verify word belongs to user
-	var wordUserID string
-	err = tx.QueryRowContext(ctx, `SELECT user_id FROM words WHERE id = $1`, req.WordID).Scan(&wordUserID)
-	if err == sql.ErrNoRows {
-		writeError(w, http.StatusNotFound, "word not found")
-		return
-	}
-	if err != nil {
-		h.logger.Error("failed to verify word ownership", "err", err)
-		writeError(w, http.StatusInternalServerError, "failed to process review")
-		return
-	}
-	if wordUserID != userID {
-		writeError(w, http.StatusForbidden, "word does not belong to user")
-		return
-	}
-
-	// Insert review record
-	reviewID := uuid.NewString()
-	_, err = tx.ExecContext(ctx, `
-		INSERT INTO reviews (id, word_id, user_id, result, review_type)
-		VALUES ($1, $2, $3, $4, $5)
-	`, reviewID, req.WordID, userID, req.Result, req.ReviewType)
-	if err != nil {
-		h.logger.Error("failed to insert review", "err", err)
-		writeError(w, http.StatusInternalServerError, "failed to save review")
-		return
-	}
-
-	// Update review stats
-	if err := db.UpdateReviewStats(ctx, tx, req.WordID, req.Result); err != nil {
-		h.logger.Error("failed to update review stats", "err", err)
-		writeError(w, http.StatusInternalServerError, "failed to update stats")
-		return
-	}
-
-	// Commit transaction
-	if err := tx.Commit(); err != nil {
-		h.logger.Error("failed to commit transaction", "err", err)
-		writeError(w, http.StatusInternalServerError, "failed to save review")
-		return
-	}
-
-	writeJSON(w, http.StatusOK, SubmitReviewResponse{Success: true})
+	writeJSON(w, http.StatusOK, SubmitReviewResponse{Success: output.Success})
 }
 
 type StartSessionResponse struct {
-	SessionID string         `json:"session_id"`
-	Items     []SessionItem  `json:"items"`
-	Total     int            `json:"total"`
+	SessionID string        `json:"session_id"`
+	Items     []SessionItem `json:"items"`
+	Total     int           `json:"total"`
 }
 
 type SessionItem struct {
@@ -106,30 +75,29 @@ type SessionItem struct {
 
 // Session storage for MVP (in-memory)
 // TODO: Replace with Redis for production
-var sessionStore = make(map[string]*session.Session)
+var (
+	sessionStore = make(map[string]*domain.Session)
+	sessionMutex sync.RWMutex
+)
 
 func (h *Handler) StartSession(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	userID := mustUserIDFromContext(ctx)
 
-	// Rebuild review queue
-	if err := job.RebuildReviewQueue(ctx, h.db, userID); err != nil {
-		h.logger.Error("failed to rebuild review queue", "err", err)
-		writeError(w, http.StatusInternalServerError, "failed to prepare review session")
-		return
+	input := usecase.StartSessionInput{
+		UserID: userID,
 	}
 
-	// Build session
-	sess, err := session.BuildSession(ctx, h.db, userID)
+	output, err := h.sessionUseCase.StartSession(ctx, input)
 	if err != nil {
-		h.logger.Error("failed to build session", "err", err)
+		h.logger.Error("failed to start session", "err", err)
 		writeError(w, http.StatusInternalServerError, "failed to create session")
 		return
 	}
 
 	// Convert session items to response items
-	items := make([]SessionItem, len(sess.Items))
-	for i, item := range sess.Items {
+	items := make([]SessionItem, len(output.Items))
+	for i, item := range output.Items {
 		items[i] = SessionItem{
 			WordID:        item.WordID,
 			ReviewType:    item.ReviewType,
@@ -138,14 +106,22 @@ func (h *Handler) StartSession(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
-	// Store session
+	// Store session in memory
 	sessionID := uuid.NewString()
-	sessionStore[sessionID] = sess
+	session := &domain.Session{
+		UserID: userID,
+		Items:  output.Items,
+		Index:  0,
+	}
+
+	sessionMutex.Lock()
+	sessionStore[sessionID] = session
+	sessionMutex.Unlock()
 
 	writeJSON(w, http.StatusOK, StartSessionResponse{
 		SessionID: sessionID,
 		Items:     items,
-		Total:     len(items),
+		Total:     output.Total,
 	})
 }
 
@@ -159,7 +135,10 @@ func (h *Handler) GetCurrentItem(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	sessionMutex.RLock()
 	sess, exists := sessionStore[sessionID]
+	sessionMutex.RUnlock()
+
 	if !exists {
 		writeError(w, http.StatusNotFound, "session not found")
 		return
@@ -197,7 +176,10 @@ func (h *Handler) AdvanceSession(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	sessionMutex.Lock()
 	sess, exists := sessionStore[sessionID]
+	sessionMutex.Unlock()
+
 	if !exists {
 		writeError(w, http.StatusNotFound, "session not found")
 		return

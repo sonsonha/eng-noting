@@ -1,0 +1,152 @@
+package usecase
+
+import (
+	"context"
+
+	"github.com/sonsonha/eng-noting/internal/domain"
+	"github.com/sonsonha/eng-noting/internal/review"
+)
+
+// SessionUseCase handles session-related business logic
+type SessionUseCase struct {
+	queueRepo     domain.ReviewQueueRepository
+	wordStatsRepo domain.WordStatsRepository
+	reviewRepo    domain.ReviewRepository
+	mpsService    *MPSService
+}
+
+// NewSessionUseCase creates a new SessionUseCase
+func NewSessionUseCase(
+	queueRepo domain.ReviewQueueRepository,
+	wordStatsRepo domain.WordStatsRepository,
+	reviewRepo domain.ReviewRepository,
+	mpsService *MPSService,
+) *SessionUseCase {
+	return &SessionUseCase{
+		queueRepo:     queueRepo,
+		wordStatsRepo: wordStatsRepo,
+		reviewRepo:    reviewRepo,
+		mpsService:    mpsService,
+	}
+}
+
+// StartSessionInput represents input for starting a session
+type StartSessionInput struct {
+	UserID string
+}
+
+// StartSessionOutput represents output from starting a session
+type StartSessionOutput struct {
+	SessionID string
+	Items     []domain.SessionItem
+	Total     int
+}
+
+// StartSession starts a new review session
+func (uc *SessionUseCase) StartSession(ctx context.Context, input StartSessionInput) (*StartSessionOutput, error) {
+	// Rebuild review queue
+	if err := uc.rebuildReviewQueue(ctx, input.UserID); err != nil {
+		return nil, err
+	}
+
+	// Build session from queue
+	session, err := uc.buildSession(ctx, input.UserID)
+	if err != nil {
+		return nil, err
+	}
+
+	return &StartSessionOutput{
+		SessionID: "", // Will be set by handler if needed
+		Items:     session.Items,
+		Total:     len(session.Items),
+	}, nil
+}
+
+// rebuildReviewQueue rebuilds the review queue for a user
+func (uc *SessionUseCase) rebuildReviewQueue(ctx context.Context, userID string) error {
+	// Load word stats
+	stats, err := uc.wordStatsRepo.LoadStats(ctx, userID)
+	if err != nil {
+		return err
+	}
+
+	// Calculate MPS for each word and build queue items
+	var queueItems []domain.ReviewQueueItem
+	for _, stat := range stats {
+		mpsInput := CalculateMPSInput{
+			WordStats: stat,
+		}
+		mpsOutput, reason := uc.mpsService.CalculateMPS(mpsInput)
+
+		queueItems = append(queueItems, domain.ReviewQueueItem{
+			UserID:        userID,
+			WordID:        stat.WordID,
+			PriorityScore: mpsOutput.Score,
+			Reason:        reason,
+		})
+	}
+
+	return uc.queueRepo.Rebuild(ctx, userID, queueItems)
+}
+
+// buildSession builds a session from the review queue
+func (uc *SessionUseCase) buildSession(ctx context.Context, userID string) (*domain.Session, error) {
+	queueItems, err := uc.queueRepo.GetQueueItems(ctx, userID)
+	if err != nil {
+		return nil, err
+	}
+
+	const (
+		MaxCritical = 5
+		MaxNormal   = 5
+	)
+
+	var critical []domain.SessionItem
+	var normal []domain.SessionItem
+
+	for _, item := range queueItems {
+		// Get review stats for this word
+		stats, err := uc.reviewRepo.GetStats(ctx, item.WordID)
+		if err != nil {
+			continue
+		}
+
+		// Get last review type
+		lastReviewType, _ := uc.reviewRepo.GetLastReviewType(ctx, item.WordID)
+
+		// Calculate review type
+		reviewCtx := review.Context{
+			MPS:            item.PriorityScore,
+			AccuracyRate:   stats.AccuracyRate,
+			TotalReviews:   stats.TotalReviews,
+			LastReviewType: lastReviewType,
+		}
+		reviewType := review.SelectType(reviewCtx)
+
+		sessionItem := domain.SessionItem{
+			WordID:        item.WordID,
+			ReviewType:    reviewType,
+			PriorityScore: item.PriorityScore,
+			Reason:        item.Reason,
+		}
+
+		switch {
+		case item.PriorityScore >= 60 && len(critical) < MaxCritical:
+			critical = append(critical, sessionItem)
+		case item.PriorityScore >= 40 && len(normal) < MaxNormal:
+			normal = append(normal, sessionItem)
+		}
+
+		if len(critical) == MaxCritical && len(normal) == MaxNormal {
+			break
+		}
+	}
+
+	items := append(critical, normal...)
+
+	return &domain.Session{
+		UserID: userID,
+		Items:  items,
+		Index:  0,
+	}, nil
+}

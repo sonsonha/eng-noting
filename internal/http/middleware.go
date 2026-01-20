@@ -5,6 +5,8 @@ import (
 	"encoding/json"
 	"net/http"
 	"strings"
+
+	"github.com/google/uuid"
 )
 
 type contextKey string
@@ -13,7 +15,7 @@ const userIDKey contextKey = "user_id"
 
 // AuthMiddleware extracts user ID from Authorization header
 // For MVP: expects "Bearer <user_id>" format
-// TODO: Replace with proper JWT/session auth in production
+// Replace with proper JWT/session auth in production
 func AuthMiddleware(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		authHeader := r.Header.Get("Authorization")
@@ -31,6 +33,12 @@ func AuthMiddleware(next http.Handler) http.Handler {
 		userID := parts[1]
 		if userID == "" {
 			writeError(w, http.StatusUnauthorized, "missing user ID")
+			return
+		}
+
+		// Validate UUID format
+		if _, err := uuid.Parse(userID); err != nil {
+			writeError(w, http.StatusBadRequest, "invalid user ID format (must be UUID)")
 			return
 		}
 

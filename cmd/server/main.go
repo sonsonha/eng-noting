@@ -12,7 +12,10 @@ import (
 	_ "github.com/lib/pq"
 	"github.com/sonsonha/eng-noting/internal/ai/openai"
 	"github.com/sonsonha/eng-noting/internal/config"
+	infraai "github.com/sonsonha/eng-noting/internal/infrastructure/ai"
+	infrarepo "github.com/sonsonha/eng-noting/internal/infrastructure/repository"
 	httphandler "github.com/sonsonha/eng-noting/internal/http"
+	"github.com/sonsonha/eng-noting/internal/usecase"
 )
 
 func main() {
@@ -34,14 +37,27 @@ func main() {
 
 	log.Println("Database connection established successfully.")
 
-	// AI client setup
+	// Infrastructure layer: Repositories
+	wordRepo := infrarepo.NewWordRepository(db)
+	reviewRepo := infrarepo.NewReviewRepository(db)
+	reviewQueueRepo := infrarepo.NewReviewQueueRepository(db)
+	wordStatsRepo := infrarepo.NewWordStatsRepository(db)
+
+	// Infrastructure layer: AI Service
 	aiClient := openai.NewClient(cfg.AIAPIKey)
 	if aiClient == nil {
 		log.Println("Warning: AI client not initialized (AI_API_KEY not set)")
 	}
+	aiService := infraai.NewAIService(aiClient)
 
-	// HTTP handler setup
-	handler := httphandler.NewHandler(db, aiClient)
+	// Use case layer
+	mpsService := usecase.NewMPSService()
+	wordUseCase := usecase.NewWordUseCase(wordRepo, aiService)
+	reviewUseCase := usecase.NewReviewUseCase(reviewRepo, wordRepo)
+	sessionUseCase := usecase.NewSessionUseCase(reviewQueueRepo, wordStatsRepo, reviewRepo, mpsService)
+
+	// Presentation layer: HTTP handlers
+	handler := httphandler.NewHandler(wordUseCase, reviewUseCase, sessionUseCase)
 
 	// Router setup
 	r := chi.NewRouter()
