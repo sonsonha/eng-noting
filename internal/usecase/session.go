@@ -76,13 +76,18 @@ func (uc *SessionUseCase) rebuildReviewQueue(ctx context.Context, userID string)
 		mpsInput := CalculateMPSInput{
 			WordStats: stat,
 		}
-		mpsOutput, reason := uc.mpsService.CalculateMPS(mpsInput)
+		mpsOutput, mpsReason := uc.mpsService.CalculateMPS(mpsInput)
+
+		// Skip low priority words
+		if mpsOutput.Score < 30 {
+			continue
+		}
 
 		queueItems = append(queueItems, domain.ReviewQueueItem{
 			UserID:        userID,
 			WordID:        stat.WordID,
 			PriorityScore: mpsOutput.Score,
-			Reason:        reason,
+			Reason:        mpsReason,
 		})
 	}
 
@@ -123,11 +128,15 @@ func (uc *SessionUseCase) buildSession(ctx context.Context, userID string) (*dom
 		}
 		reviewType := review.SelectType(reviewCtx)
 
+		// Enhance reason with review-specific reason
+		reviewReason := review.Reason(reviewCtx, reviewType)
+		enhancedReason := item.Reason + ". " + reviewReason
+
 		sessionItem := domain.SessionItem{
 			WordID:        item.WordID,
 			ReviewType:    reviewType,
 			PriorityScore: item.PriorityScore,
-			Reason:        item.Reason,
+			Reason:        enhancedReason,
 		}
 
 		switch {
