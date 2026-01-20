@@ -10,11 +10,12 @@ import (
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/chi/v5/middleware"
 	_ "github.com/lib/pq"
-	"github.com/sonsonha/eng-noting/internal/ai/openai"
+
 	"github.com/sonsonha/eng-noting/internal/config"
-	infraai "github.com/sonsonha/eng-noting/internal/infrastructure/ai"
-	infrarepo "github.com/sonsonha/eng-noting/internal/infrastructure/repository"
 	httphandler "github.com/sonsonha/eng-noting/internal/http"
+	infraai "github.com/sonsonha/eng-noting/internal/infrastructure/ai"
+	"github.com/sonsonha/eng-noting/internal/infrastructure/ai/openai"
+	infrarepo "github.com/sonsonha/eng-noting/internal/infrastructure/repository"
 	"github.com/sonsonha/eng-noting/internal/usecase"
 )
 

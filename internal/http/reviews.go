@@ -6,7 +6,7 @@ import (
 	"sync"
 
 	"github.com/google/uuid"
-	"github.com/sonsonha/eng-noting/internal/domain"
+	"github.com/sonsonha/eng-noting/internal/domain/session"
 	"github.com/sonsonha/eng-noting/internal/usecase"
 )
 
@@ -76,7 +76,7 @@ type SessionItem struct {
 // Session storage for MVP (in-memory)
 // TODO: Replace with Redis for production
 var (
-	sessionStore = make(map[string]*domain.Session)
+	sessionStore = make(map[string]*session.Session)
 	sessionMutex sync.RWMutex
 )
 
@@ -108,7 +108,7 @@ func (h *Handler) StartSession(w http.ResponseWriter, r *http.Request) {
 
 	// Store session in memory
 	sessionID := uuid.NewString()
-	session := &domain.Session{
+	session := &session.Session{
 		UserID: userID,
 		Items:  output.Items,
 		Index:  0,

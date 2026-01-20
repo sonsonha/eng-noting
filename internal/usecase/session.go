@@ -3,23 +3,24 @@ package usecase
 import (
 	"context"
 
-	"github.com/sonsonha/eng-noting/internal/domain"
-	"github.com/sonsonha/eng-noting/internal/review"
+	"github.com/sonsonha/eng-noting/internal/domain/review"
+	"github.com/sonsonha/eng-noting/internal/domain/session"
+	"github.com/sonsonha/eng-noting/internal/domain/word"
 )
 
 // SessionUseCase handles session-related business logic
 type SessionUseCase struct {
-	queueRepo     domain.ReviewQueueRepository
-	wordStatsRepo domain.WordStatsRepository
-	reviewRepo    domain.ReviewRepository
+	queueRepo     session.ReviewQueueRepository
+	wordStatsRepo word.WordStatsRepository
+	reviewRepo    review.ReviewRepository
 	mpsService    *MPSService
 }
 
 // NewSessionUseCase creates a new SessionUseCase
 func NewSessionUseCase(
-	queueRepo domain.ReviewQueueRepository,
-	wordStatsRepo domain.WordStatsRepository,
-	reviewRepo domain.ReviewRepository,
+	queueRepo session.ReviewQueueRepository,
+	wordStatsRepo word.WordStatsRepository,
+	reviewRepo review.ReviewRepository,
 	mpsService *MPSService,
 ) *SessionUseCase {
 	return &SessionUseCase{
@@ -38,7 +39,7 @@ type StartSessionInput struct {
 // StartSessionOutput represents output from starting a session
 type StartSessionOutput struct {
 	SessionID string
-	Items     []domain.SessionItem
+	Items     []session.SessionItem
 	Total     int
 }
 
@@ -71,7 +72,7 @@ func (uc *SessionUseCase) rebuildReviewQueue(ctx context.Context, userID string)
 	}
 
 	// Calculate MPS for each word and build queue items
-	var queueItems []domain.ReviewQueueItem
+	var queueItems []session.ReviewQueueItem
 	for _, stat := range stats {
 		mpsInput := CalculateMPSInput{
 			WordStats: stat,
@@ -83,7 +84,7 @@ func (uc *SessionUseCase) rebuildReviewQueue(ctx context.Context, userID string)
 			continue
 		}
 
-		queueItems = append(queueItems, domain.ReviewQueueItem{
+		queueItems = append(queueItems, session.ReviewQueueItem{
 			UserID:        userID,
 			WordID:        stat.WordID,
 			PriorityScore: mpsOutput.Score,
@@ -95,7 +96,7 @@ func (uc *SessionUseCase) rebuildReviewQueue(ctx context.Context, userID string)
 }
 
 // buildSession builds a session from the review queue
-func (uc *SessionUseCase) buildSession(ctx context.Context, userID string) (*domain.Session, error) {
+func (uc *SessionUseCase) buildSession(ctx context.Context, userID string) (*session.Session, error) {
 	queueItems, err := uc.queueRepo.GetQueueItems(ctx, userID)
 	if err != nil {
 		return nil, err
@@ -106,8 +107,8 @@ func (uc *SessionUseCase) buildSession(ctx context.Context, userID string) (*dom
 		MaxNormal   = 5
 	)
 
-	var critical []domain.SessionItem
-	var normal []domain.SessionItem
+	var critical []session.SessionItem
+	var normal []session.SessionItem
 
 	for _, item := range queueItems {
 		// Get review stats for this word
@@ -132,7 +133,7 @@ func (uc *SessionUseCase) buildSession(ctx context.Context, userID string) (*dom
 		reviewReason := review.Reason(reviewCtx, reviewType)
 		enhancedReason := item.Reason + ". " + reviewReason
 
-		sessionItem := domain.SessionItem{
+		sessionItem := session.SessionItem{
 			WordID:        item.WordID,
 			ReviewType:    reviewType,
 			PriorityScore: item.PriorityScore,
@@ -153,7 +154,7 @@ func (uc *SessionUseCase) buildSession(ctx context.Context, userID string) (*dom
 
 	items := append(critical, normal...)
 
-	return &domain.Session{
+	return &session.Session{
 		UserID: userID,
 		Items:  items,
 		Index:  0,

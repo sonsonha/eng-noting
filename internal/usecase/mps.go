@@ -3,8 +3,8 @@ package usecase
 import (
 	"time"
 
-	"github.com/sonsonha/eng-noting/internal/domain"
-	"github.com/sonsonha/eng-noting/internal/mps"
+	"github.com/sonsonha/eng-noting/internal/domain/word"
+	"github.com/sonsonha/eng-noting/internal/domain/mps"
 )
 
 // MPSService handles Memory Priority Score calculations
@@ -17,7 +17,7 @@ func NewMPSService() *MPSService {
 
 // CalculateMPSInput represents input for MPS calculation
 type CalculateMPSInput struct {
-	WordStats domain.WordStats
+	WordStats word.WordStats
 }
 
 // CalculateMPSOutput represents output from MPS calculation

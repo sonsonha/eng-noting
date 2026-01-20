@@ -5,17 +5,19 @@ import (
 	"time"
 
 	"github.com/google/uuid"
-	"github.com/sonsonha/eng-noting/internal/domain"
+
+	"github.com/sonsonha/eng-noting/internal/domain/ai"
+	wordDomain "github.com/sonsonha/eng-noting/internal/domain/word"
 )
 
 // WordUseCase handles word-related business logic
 type WordUseCase struct {
-	wordRepo domain.WordRepository
-	aiSvc    domain.AIService
+	wordRepo wordDomain.WordRepository
+	aiSvc    ai.AIService
 }
 
 // NewWordUseCase creates a new WordUseCase
-func NewWordUseCase(wordRepo domain.WordRepository, aiSvc domain.AIService) *WordUseCase {
+func NewWordUseCase(wordRepo wordDomain.WordRepository, aiSvc ai.AIService) *WordUseCase {
 	return &WordUseCase{
 		wordRepo: wordRepo,
 		aiSvc:    aiSvc,
@@ -40,7 +42,7 @@ func (uc *WordUseCase) CreateWord(ctx context.Context, input CreateWordInput) (*
 	now := time.Now()
 	confidence := 3
 
-	word := &domain.Word{
+	word := &wordDomain.Word{
 		ID:         wordID,
 		UserID:     input.UserID,
 		Text:       input.Text,
@@ -68,7 +70,7 @@ func (uc *WordUseCase) generateAIExplanation(wordID, word, wordContext string) {
 		return
 	}
 
-	aiData := &domain.WordAIData{
+	aiData := &wordDomain.WordAIData{
 		WordID:       wordID,
 		Definition:   exp.Definition,
 		ExampleGood:  exp.ExampleGood,
@@ -91,7 +93,7 @@ type GetWordInput struct {
 
 // GetWordOutput represents output from getting a word
 type GetWordOutput struct {
-	Word *domain.Word
+	Word *wordDomain.Word
 }
 
 // GetWord retrieves a word by ID
@@ -113,7 +115,7 @@ type ListWordsInput struct {
 
 // ListWordsOutput represents output from listing words
 type ListWordsOutput struct {
-	Words []*domain.Word
+	Words []*wordDomain.Word
 	Total int
 }
 

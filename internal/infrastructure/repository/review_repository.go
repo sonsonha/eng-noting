@@ -5,7 +5,7 @@ import (
 	"database/sql"
 	"time"
 
-	"github.com/sonsonha/eng-noting/internal/domain"
+	"github.com/sonsonha/eng-noting/internal/domain/review"
 )
 
 // ReviewRepository implements domain.ReviewRepository using PostgreSQL
@@ -19,7 +19,7 @@ func NewReviewRepository(db *sql.DB) *ReviewRepository {
 }
 
 // Create creates a new review within a transaction
-func (r *ReviewRepository) Create(ctx context.Context, review *domain.Review) error {
+func (r *ReviewRepository) Create(ctx context.Context, review *review.Review) error {
 	tx, ok := ctx.Value("tx").(*sql.Tx)
 	if !ok {
 		// If no transaction, start one
@@ -56,8 +56,8 @@ func (r *ReviewRepository) Create(ctx context.Context, review *domain.Review) er
 }
 
 // GetStats retrieves review statistics for a word
-func (r *ReviewRepository) GetStats(ctx context.Context, wordID string) (*domain.ReviewStats, error) {
-	var stats domain.ReviewStats
+func (r *ReviewRepository) GetStats(ctx context.Context, wordID string) (*review.ReviewStats, error) {
+	var stats review.ReviewStats
 	var lastReviewedAt sql.NullTime
 
 	err := r.db.QueryRowContext(ctx, `
@@ -81,7 +81,7 @@ func (r *ReviewRepository) GetStats(ctx context.Context, wordID string) (*domain
 
 	if err == sql.ErrNoRows {
 		// Return default stats if not found
-		return &domain.ReviewStats{
+		return &review.ReviewStats{
 			WordID:         wordID,
 			TotalReviews:   0,
 			CorrectReviews: 0,
@@ -103,7 +103,7 @@ func (r *ReviewRepository) GetStats(ctx context.Context, wordID string) (*domain
 // UpdateStats updates review statistics for a word
 func (r *ReviewRepository) UpdateStats(ctx context.Context, wordID string, result bool) error {
 	tx, ok := ctx.Value("tx").(*sql.Tx)
-	
+
 	var err error
 	if ok {
 		_, err = tx.ExecContext(ctx, `

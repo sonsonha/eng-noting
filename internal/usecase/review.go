@@ -4,17 +4,18 @@ import (
 	"context"
 
 	"github.com/google/uuid"
-	"github.com/sonsonha/eng-noting/internal/domain"
+	"github.com/sonsonha/eng-noting/internal/domain/review"
+	"github.com/sonsonha/eng-noting/internal/domain/word"
 )
 
 // ReviewUseCase handles review-related business logic
 type ReviewUseCase struct {
-	reviewRepo domain.ReviewRepository
-	wordRepo   domain.WordRepository
+	reviewRepo review.ReviewRepository
+	wordRepo   word.WordRepository
 }
 
 // NewReviewUseCase creates a new ReviewUseCase
-func NewReviewUseCase(reviewRepo domain.ReviewRepository, wordRepo domain.WordRepository) *ReviewUseCase {
+func NewReviewUseCase(reviewRepo review.ReviewRepository, wordRepo word.WordRepository) *ReviewUseCase {
 	return &ReviewUseCase{
 		reviewRepo: reviewRepo,
 		wordRepo:   wordRepo,
@@ -46,7 +47,7 @@ func (uc *ReviewUseCase) SubmitReview(ctx context.Context, input SubmitReviewInp
 		return nil, ErrForbidden
 	}
 
-	review := &domain.Review{
+	review := &review.Review{
 		ID:         uuid.NewString(),
 		WordID:     input.WordID,
 		UserID:     input.UserID,

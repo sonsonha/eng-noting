@@ -6,6 +6,7 @@ import (
 	"time"
 
 	"github.com/sonsonha/eng-noting/internal/domain"
+	wordDomain "github.com/sonsonha/eng-noting/internal/domain/word"
 )
 
 // WordRepository implements domain.WordRepository using PostgreSQL
@@ -19,7 +20,7 @@ func NewWordRepository(db *sql.DB) *WordRepository {
 }
 
 // Create creates a new word
-func (r *WordRepository) Create(ctx context.Context, word *domain.Word) error {
+func (r *WordRepository) Create(ctx context.Context, word *wordDomain.Word) error {
 	_, err := r.db.ExecContext(ctx, `
 		INSERT INTO words (id, user_id, text, context, confidence, created_at, updated_at)
 		VALUES ($1, $2, $3, $4, $5, $6, $7)
@@ -28,8 +29,8 @@ func (r *WordRepository) Create(ctx context.Context, word *domain.Word) error {
 }
 
 // GetByID retrieves a word by ID
-func (r *WordRepository) GetByID(ctx context.Context, wordID, userID string) (*domain.Word, error) {
-	var word domain.Word
+func (r *WordRepository) GetByID(ctx context.Context, wordID, userID string) (*wordDomain.Word, error) {
+	var word wordDomain.Word
 	var createdAt, updatedAt sql.NullTime
 
 	var aiDefinition, aiExampleGood sql.NullString
@@ -85,11 +86,11 @@ func (r *WordRepository) GetByID(ctx context.Context, wordID, userID string) (*d
 
 	// Set AI data if available
 	if aiDefinition.Valid {
-		word.AIData = &domain.WordAIData{
-			WordID:       wordID,
-			Definition:   aiDefinition.String,
-			ExampleGood:  aiExampleGood.String,
-			GeneratedAt:  time.Now(), // Could fetch from DB if needed
+		word.AIData = &wordDomain.WordAIData{
+			WordID:      wordID,
+			Definition:  aiDefinition.String,
+			ExampleGood: aiExampleGood.String,
+			GeneratedAt: time.Now(), // Could fetch from DB if needed
 		}
 		if aiExampleBad.Valid {
 			word.AIData.ExampleBad = &aiExampleBad.String
@@ -106,7 +107,7 @@ func (r *WordRepository) GetByID(ctx context.Context, wordID, userID string) (*d
 }
 
 // List retrieves a list of words for a user
-func (r *WordRepository) List(ctx context.Context, userID string, limit, offset int) ([]*domain.Word, error) {
+func (r *WordRepository) List(ctx context.Context, userID string, limit, offset int) ([]*wordDomain.Word, error) {
 	rows, err := r.db.QueryContext(ctx, `
 		SELECT
 			w.id,
@@ -133,9 +134,9 @@ func (r *WordRepository) List(ctx context.Context, userID string, limit, offset 
 	}
 	defer rows.Close()
 
-	var words []*domain.Word
+	var words []*wordDomain.Word
 	for rows.Next() {
-		var word domain.Word
+		var word wordDomain.Word
 		var createdAt, updatedAt sql.NullTime
 		var aiDefinition, aiExampleGood sql.NullString
 		var aiExampleBad, aiPOS, aiCEFR sql.NullString
@@ -167,7 +168,7 @@ func (r *WordRepository) List(ctx context.Context, userID string, limit, offset 
 		}
 
 		if aiDefinition.Valid {
-			aiData := &domain.WordAIData{
+			aiData := &wordDomain.WordAIData{
 				WordID:      word.ID,
 				Definition:  aiDefinition.String,
 				ExampleGood: aiExampleGood.String,
@@ -201,7 +202,7 @@ func (r *WordRepository) Count(ctx context.Context, userID string) (int, error) 
 }
 
 // StoreAIData stores AI-generated data for a word
-func (r *WordRepository) StoreAIData(ctx context.Context, wordID string, aiData *domain.WordAIData) error {
+func (r *WordRepository) StoreAIData(ctx context.Context, wordID string, aiData *wordDomain.WordAIData) error {
 	_, err := r.db.ExecContext(ctx, `
 		INSERT INTO word_ai_data (
 			word_id,

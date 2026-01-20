@@ -1,4 +1,4 @@
-package domain
+package word
 
 import (
 	"context"
@@ -7,15 +7,15 @@ import (
 
 // Word represents a word entity in the domain
 type Word struct {
-	ID          string
-	UserID      string
-	Text        string
-	Context     *string
-	Source      *string
-	Confidence  *int
-	CreatedAt   time.Time
-	UpdatedAt   time.Time
-	AIData      *WordAIData
+	ID         string
+	UserID     string
+	Text       string
+	Context    *string
+	Source     *string
+	Confidence *int
+	CreatedAt  time.Time
+	UpdatedAt  time.Time
+	AIData     *WordAIData
 }
 
 // WordAIData represents AI-generated data for a word

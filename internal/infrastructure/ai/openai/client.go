@@ -6,7 +6,7 @@ import (
 	"strings"
 
 	openai "github.com/sashabaranov/go-openai"
-	"github.com/sonsonha/eng-noting/internal/ai"
+	"github.com/sonsonha/eng-noting/internal/domain/ai"
 )
 
 type Client struct {

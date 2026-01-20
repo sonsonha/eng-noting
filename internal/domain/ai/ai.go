@@ -1,4 +1,4 @@
-package domain
+package ai
 
 // AIExplanation represents AI-generated explanation for a word
 type AIExplanation struct {

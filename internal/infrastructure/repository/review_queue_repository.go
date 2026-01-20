@@ -4,7 +4,7 @@ import (
 	"context"
 	"database/sql"
 
-	"github.com/sonsonha/eng-noting/internal/domain"
+	"github.com/sonsonha/eng-noting/internal/domain/session"
 )
 
 // ReviewQueueRepository implements domain.ReviewQueueRepository using PostgreSQL
@@ -18,7 +18,7 @@ func NewReviewQueueRepository(db *sql.DB) *ReviewQueueRepository {
 }
 
 // Rebuild rebuilds the review queue for a user
-func (r *ReviewQueueRepository) Rebuild(ctx context.Context, userID string, items []domain.ReviewQueueItem) error {
+func (r *ReviewQueueRepository) Rebuild(ctx context.Context, userID string, items []session.ReviewQueueItem) error {
 	// Start transaction
 	tx, err := r.db.BeginTx(ctx, nil)
 	if err != nil {
@@ -47,7 +47,7 @@ func (r *ReviewQueueRepository) Rebuild(ctx context.Context, userID string, item
 }
 
 // GetQueueItems retrieves queue items for a user
-func (r *ReviewQueueRepository) GetQueueItems(ctx context.Context, userID string) ([]domain.ReviewQueueItem, error) {
+func (r *ReviewQueueRepository) GetQueueItems(ctx context.Context, userID string) ([]session.ReviewQueueItem, error) {
 	rows, err := r.db.QueryContext(ctx, `
 		SELECT user_id, word_id, priority_score, reason
 		FROM review_queue
@@ -59,9 +59,9 @@ func (r *ReviewQueueRepository) GetQueueItems(ctx context.Context, userID string
 	}
 	defer rows.Close()
 
-	var items []domain.ReviewQueueItem
+	var items []session.ReviewQueueItem
 	for rows.Next() {
-		var item domain.ReviewQueueItem
+		var item session.ReviewQueueItem
 		if err := rows.Scan(
 			&item.UserID,
 			&item.WordID,

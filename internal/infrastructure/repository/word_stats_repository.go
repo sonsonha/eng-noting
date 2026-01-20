@@ -5,7 +5,7 @@ import (
 	"database/sql"
 	"time"
 
-	"github.com/sonsonha/eng-noting/internal/domain"
+	"github.com/sonsonha/eng-noting/internal/domain/word"
 )
 
 // WordStatsRepository implements domain.WordStatsRepository using PostgreSQL
@@ -19,7 +19,7 @@ func NewWordStatsRepository(db *sql.DB) *WordStatsRepository {
 }
 
 // LoadStats loads word statistics for a user
-func (r *WordStatsRepository) LoadStats(ctx context.Context, userID string) ([]domain.WordStats, error) {
+func (r *WordStatsRepository) LoadStats(ctx context.Context, userID string) ([]word.WordStats, error) {
 	const q = `
 WITH recent_reviews AS (
     SELECT
@@ -51,10 +51,10 @@ WHERE w.user_id = $1;
 	}
 	defer rows.Close()
 
-	var result []domain.WordStats
+	var result []word.WordStats
 
 	for rows.Next() {
-		var r domain.WordStats
+		var r word.WordStats
 		var lastReviewedAt sql.NullTime
 
 		if err := rows.Scan(
